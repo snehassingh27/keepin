@@ -1,0 +1,874 @@
+import { useState, useEffect } from "react";
+
+const A = "#1D9E75";
+const AL = "#E1F5EE";
+const AD = "#085041";
+
+const SCREENS = {
+  SPLASH:"splash", SIGNIN:"signin", SIGNUP:"signup", ONBOARD_USE:"onboard_use",
+  SETUP_LOC:"setup_loc", HOME:"home", ORGANISE:"organise", SCAN_READY:"scan_ready",
+  SCANNING:"scanning", PROCESSING:"processing", REVIEW:"review",
+  ITEM_DETAIL:"item_detail", ASK:"ask", BROWSE:"browse",
+  PREMIUM_GATE:"premium_gate", TAG_INSTRUCTIONS:"tag_instructions",
+  REDEEM:"redeem", NOTIFS:"notifs", AFTER_TRIAL:"after_trial",
+};
+
+const ITEMS_DATA = [
+  {id:1,name:"PS5 Controller",emoji:"🎮",container:"Storage Box #1",location:"Storage Room",tags:["gaming","ps5"],out:false},
+  {id:2,name:"MagSafe Charger",emoji:"🔌",container:"Storage Box #1",location:"Storage Room",tags:["apple","accessories"],out:false},
+  {id:3,name:"Hiking Boots",emoji:"👟",container:"Gear Box",location:"Storage Room",tags:["hiking","boots"],out:false},
+  {id:4,name:"Water Bottle",emoji:"🍶",container:"Gear Box",location:"Storage Room",tags:["hiking","biking"],out:true},
+  {id:5,name:"Winter Jacket",emoji:"🧥",container:"Wardrobe Box",location:"Bedroom",tags:["clothes","winter"],out:false},
+  {id:6,name:"Sunglasses",emoji:"🕶️",container:"Wardrobe Box",location:"Bedroom",tags:["summer","fashion"],out:false},
+];
+
+const AI_ITEMS = [
+  {id:10,name:"Game Controller",emoji:"🎮",conf:94},
+  {id:11,name:"Wireless Mouse",emoji:"🖱️",conf:89},
+  {id:12,name:"USB-C Charger",emoji:"🔌",conf:97},
+  {id:13,name:"Laptop Stand",emoji:"💻",conf:82},
+];
+
+function px(n){return n+"px"}
+
+const phone = {width:375,height:720,borderRadius:40,overflow:"hidden",position:"relative",border:"8px solid #111",boxSizing:"content-box",flexShrink:0};
+const scr = {position:"absolute",inset:0,display:"flex",flexDirection:"column",background:"#fff",overflowY:"auto",fontFamily:"system-ui,-apple-system,sans-serif"};
+
+function Bar(){
+  return <div style={{height:44,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",flexShrink:0}}>
+    <span style={{fontSize:15,fontWeight:700,color:"#000"}}>9:41</span>
+    <span style={{fontSize:12,fontWeight:600,color:"#000"}}>●●● 100%</span>
+  </div>;
+}
+
+function Nav({active,go}){
+  const tabs=[["home","⌂","Home"],["organise","⊞","Organise"],["ask","✦","Ask"],["browse","⊟","Browse"]];
+  return <div style={{height:58,borderTop:"0.5px solid #eee",display:"flex",background:"#fff",flexShrink:0}}>
+    {tabs.map(([id,ico,lbl])=>{
+      const on=active===id;
+      return <div key={id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,cursor:"pointer",color:on?A:"#aaa",fontSize:10,fontWeight:on?700:400}} onClick={()=>go(id)}>
+        <div style={{width:26,height:26,borderRadius:"50%",background:on?AL:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>{ico}</div>
+        {lbl}
+      </div>;
+    })}
+  </div>;
+}
+
+function Btn({label,onClick,outline,ghost,danger,disabled}){
+  if(ghost) return <button onClick={onClick} style={{background:"transparent",border:"none",color:"#999",fontSize:14,cursor:"pointer",padding:"8px 0",width:"100%"}}>{label}</button>;
+  return <button onClick={onClick} disabled={disabled} style={{width:"100%",padding:"14px 0",borderRadius:12,border:outline?`1.5px solid ${A}`:"none",background:outline?"transparent":danger?"#E24B4A":A,color:outline?A:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",opacity:disabled?0.45:1}}>{label}</button>;
+}
+
+function BackBtn({go}){
+  return <div onClick={go} style={{width:32,height:32,borderRadius:8,background:"#f4f4f4",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,flexShrink:0}}>←</div>;
+}
+
+function Tag({label,green}){
+  return <span style={{background:green?AL:"#f2f2f2",color:green?AD:"#666",fontSize:11,fontWeight:600,padding:"3px 8px",borderRadius:20,display:"inline-block",marginRight:4}}>{label}</span>;
+}
+
+function Pill({label,color}){
+  const c={green:{bg:AL,tx:AD},amber:{bg:"#FAEEDA",tx:"#633806"},red:{bg:"#FCEBEB",tx:"#791F1F"},blue:{bg:"#E6F1FB",tx:"#0C447C"}}[color]||{bg:"#f0f0f0",tx:"#666"};
+  return <span style={{background:c.bg,color:c.tx,fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20}}>{label}</span>;
+}
+
+function LockBadge(){
+  return <span style={{background:"#FAEEDA",color:"#633806",fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:20,display:"inline-flex",alignItems:"center",gap:3}}>🔒 Premium</span>;
+}
+
+function ItemRow({item,onClick}){
+  return <div onClick={onClick} style={{display:"flex",alignItems:"center",padding:"10px 0",borderBottom:"0.5px solid #f2f2f2",cursor:"pointer"}}>
+    <div style={{width:40,height:40,borderRadius:10,background:"#f8f8f8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,marginRight:12}}>{item.emoji}</div>
+    <div style={{flex:1,minWidth:0}}>
+      <div style={{fontSize:14,fontWeight:600,color:"#111",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
+      <div style={{fontSize:12,color:"#aaa",marginTop:1}}>{item.location} · {item.container}</div>
+    </div>
+    <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+      {item.tags.slice(0,1).map(t=><Tag key={t} label={t}/>)}
+      {item.out&&<Pill label="Out" color="amber"/>}
+    </div>
+  </div>;
+}
+
+// ─── SCREENS ───────────────────────────────────────────────
+
+function Splash({go}){
+  const [s,setS]=useState(0);
+  const slides=[
+    {title:"Never lose anything during a move again.",sub:"Keepin tracks exactly what's in every box — so you always know where to look.",ico:"📦"},
+    {title:"Scan a box. See what's inside.",sub:"QR tags turn any container into a searchable inventory. No guessing.",ico:"⬛"},
+    {title:"Ask Keepin. Find it instantly.",sub:"Type or speak naturally — 'Where are my hiking boots?' and you'll know in seconds.",ico:"✦"},
+  ];
+  const sl=slides[s];
+  return <div style={{...scr,justifyContent:"space-between",paddingBottom:36}}>
+    <Bar/>
+    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 32px",textAlign:"center"}}>
+      <div style={{width:84,height:84,borderRadius:24,background:AL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:38,marginBottom:22}}>{sl.ico}</div>
+      <div style={{fontSize:21,fontWeight:800,color:"#111",lineHeight:1.3,marginBottom:10}}>{sl.title}</div>
+      <div style={{fontSize:14,color:"#777",lineHeight:1.7}}>{sl.sub}</div>
+      <div style={{display:"flex",gap:7,marginTop:20}}>
+        {slides.map((_,i)=><div key={i} onClick={()=>setS(i)} style={{width:i===s?22:7,height:7,borderRadius:4,background:i===s?A:"#e0e0e0",cursor:"pointer",transition:"all .2s"}}/>)}
+      </div>
+    </div>
+    <div style={{padding:"0 24px",display:"flex",flexDirection:"column",gap:10}}>
+      <Btn label="Get started" onClick={()=>go(SCREENS.SIGNUP)}/>
+      <Btn label="Sign in" onClick={()=>go(SCREENS.SIGNIN)} outline/>
+    </div>
+  </div>;
+}
+
+function SignIn({go}){
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px"}}><BackBtn go={()=>go(SCREENS.SPLASH)}/></div>
+    <div style={{padding:"16px 24px 0"}}>
+      <div style={{fontSize:23,fontWeight:800,marginBottom:4}}>Welcome back</div>
+      <div style={{fontSize:14,color:"#888",marginBottom:26}}>Enter your login info below.</div>
+      <label style={{fontSize:13,color:"#777",display:"block",marginBottom:5}}>Email address</label>
+      <input defaultValue="emily.stevenson@gmail.com" style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid #e0e0e0",fontSize:15,marginBottom:14,boxSizing:"border-box",background:"#fafafa"}}/>
+      <label style={{fontSize:13,color:"#777",display:"block",marginBottom:5}}>Password</label>
+      <input type="password" defaultValue="password" style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid #e0e0e0",fontSize:15,marginBottom:6,boxSizing:"border-box",background:"#fafafa"}}/>
+      <div style={{textAlign:"right",marginBottom:22}}><span style={{fontSize:13,color:A,cursor:"pointer"}}>Forgot password?</span></div>
+      <Btn label="Sign in" onClick={()=>go(SCREENS.HOME)}/>
+      <div style={{textAlign:"center",margin:"14px 0",color:"#ccc",fontSize:13}}>— OR —</div>
+      <Btn label="Continue with Apple" onClick={()=>go(SCREENS.HOME)} outline/>
+      <div style={{height:10}}/>
+      <Btn label="Continue with Google" onClick={()=>go(SCREENS.HOME)} outline/>
+    </div>
+  </div>;
+}
+
+function SignUp({go}){
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px"}}><BackBtn go={()=>go(SCREENS.SPLASH)}/></div>
+    <div style={{padding:"16px 24px 0"}}>
+      <div style={{fontSize:23,fontWeight:800,marginBottom:4}}>Let's get started</div>
+      <div style={{fontSize:14,color:"#888",marginBottom:26}}>Create your free Keepin account.</div>
+      {["Your name","Email address","Password"].map((l,i)=><div key={l} style={{marginBottom:14}}>
+        <label style={{fontSize:13,color:"#777",display:"block",marginBottom:5}}>{l}</label>
+        <input type={i===2?"password":"text"} placeholder={l} style={{width:"100%",padding:"12px 14px",borderRadius:10,border:"1px solid #e0e0e0",fontSize:15,boxSizing:"border-box",background:"#fafafa"}}/>
+      </div>)}
+      <div style={{fontSize:12,color:"#bbb",marginBottom:22}}>Must be at least 8 characters with one special character.</div>
+      <Btn label="Continue" onClick={()=>go(SCREENS.ONBOARD_USE)}/>
+      <div style={{textAlign:"center",margin:"14px 0",color:"#ccc",fontSize:13}}>— OR —</div>
+      <Btn label="Continue with Apple" onClick={()=>go(SCREENS.ONBOARD_USE)} outline/>
+      <div style={{height:10}}/>
+      <Btn label="Continue with Google" onClick={()=>go(SCREENS.ONBOARD_USE)} outline/>
+    </div>
+  </div>;
+}
+
+function OnboardUse({go}){
+  const [sel,setSel]=useState(null);
+  const opts=[{id:"home",ico:"🏠",title:"Home",sub:"Organising belongings at home"},
+              {id:"moving",ico:"📦",title:"Moving",sub:"Packing and tracking boxes"},
+              {id:"biz",ico:"💼",title:"Small business",sub:"Tracking inventory or supplies"}];
+  return <div style={{...scr,padding:"0 0 32px"}}>
+    <Bar/>
+    <div style={{padding:"16px 24px 0",flex:1}}>
+      <div style={{fontSize:22,fontWeight:800,marginBottom:6}}>How will you use Keepin?</div>
+      <div style={{fontSize:14,color:"#888",marginBottom:24}}>This helps us personalise your experience.</div>
+      {opts.map(o=><div key={o.id} onClick={()=>setSel(o.id)} style={{border:`1.5px solid ${sel===o.id?A:"#e0e0e0"}`,background:sel===o.id?AL:"#fff",borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer",display:"flex",alignItems:"center",gap:14}}>
+        <div style={{fontSize:26}}>{o.ico}</div>
+        <div><div style={{fontSize:15,fontWeight:700,color:"#111"}}>{o.title}</div><div style={{fontSize:12,color:"#888"}}>{o.sub}</div></div>
+        {sel===o.id&&<div style={{marginLeft:"auto",color:A,fontWeight:700}}>✓</div>}
+      </div>)}
+    </div>
+    <div style={{padding:"0 24px"}}><Btn label="Continue" onClick={()=>go(SCREENS.SETUP_LOC)} disabled={!sel}/></div>
+  </div>;
+}
+
+function SetupLoc({go}){
+  const [added,setAdded]=useState(false);
+  return <div style={{...scr,paddingBottom:36}}>
+    <Bar/>
+    <div style={{padding:"16px 24px 0",flex:1}}>
+      <div style={{fontSize:22,fontWeight:800,marginBottom:6}}>Set up your first location</div>
+      <div style={{fontSize:14,color:"#888",marginBottom:24}}>Locations group your containers — like Home, Office, Storage Unit.</div>
+      {added&&<div style={{background:AL,border:`1px solid ${A}`,borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+        <div style={{fontSize:14,fontWeight:700,color:AD}}>Home</div>
+        <div style={{fontSize:12,color:"#666",marginTop:2}}>0 containers · 0 items</div>
+      </div>}
+      <Btn label="+ Add location" onClick={()=>setAdded(true)} outline/>
+    </div>
+    <div style={{padding:"0 24px",display:"flex",flexDirection:"column",gap:10}}>
+      <Btn label="Continue" onClick={()=>go(SCREENS.HOME)}/>
+      <Btn label="Not now" onClick={()=>go(SCREENS.HOME)} ghost/>
+    </div>
+  </div>;
+}
+
+const SCREENS_EXTRA = { SETTINGS: "settings", EXT_REDEEM: "ext_redeem" };
+Object.assign(SCREENS, SCREENS_EXTRA);
+
+function Home({go,items,banner,isPremium}){
+  const out=items.filter(i=>i.out);
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"2px 20px 10px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+      <div><div style={{fontSize:22,fontWeight:800}}>Home</div><div style={{fontSize:13,color:"#aaa"}}>Good morning, Emily</div></div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div onClick={()=>go(SCREENS.NOTIFS)} style={{width:32,height:32,borderRadius:"50%",background:"#f5f5f5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,cursor:"pointer"}}>🔔</div>
+        <div onClick={()=>go(SCREENS.SETTINGS)} style={{width:36,height:36,borderRadius:"50%",background:AL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:AD,cursor:"pointer"}}>E</div>
+      </div>
+    </div>
+
+    {banner&&<div onClick={()=>go(SCREENS.REVIEW)} style={{margin:"0 16px 12px",background:"#FAEEDA",borderRadius:12,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",flexShrink:0}}>
+      <div><div style={{fontSize:13,fontWeight:700,color:"#633806"}}>2 recordings ready to organise</div><div style={{fontSize:11,color:"#854F0B"}}>AI finished processing — tap to review</div></div>
+      <span style={{fontSize:18,color:"#633806"}}>→</span>
+    </div>}
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,padding:"0 16px",marginBottom:14,flexShrink:0}}>
+      {[["3","Locations"],["12","Containers"],[String(items.length),"Items"]].map(([v,l])=>(
+        <div key={l} style={{background:"#f8f8f8",borderRadius:12,padding:"12px 0",textAlign:"center"}}>
+          <div style={{fontSize:22,fontWeight:800}}>{v}</div>
+          <div style={{fontSize:11,color:"#aaa"}}>{l}</div>
+        </div>
+      ))}
+    </div>
+
+    <div style={{flex:1,overflowY:"auto",padding:"0 16px 8px"}}>
+      {out.length>0&&<>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{fontSize:12,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:.5}}>Pending return</span><span style={{fontSize:12,color:A}}>View all</span></div>
+        {out.map(i=><ItemRow key={i.id} item={i} onClick={()=>go(SCREENS.ITEM_DETAIL)}/>)}
+      </>}
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:14,marginBottom:8}}><span style={{fontSize:12,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:.5}}>Recently added</span><span style={{fontSize:12,color:A}}>View all</span></div>
+      {items.slice(0,4).map(i=><ItemRow key={i.id} item={i} onClick={()=>go(SCREENS.ITEM_DETAIL)}/>)}
+    </div>
+
+    {/* BOTTOM PERSISTENT BUTTONS — Nana's explicit request to bypass Apple */}
+    {!isPremium&&<div style={{padding:"10px 16px 12px",borderTop:"0.5px solid #f0f0f0",display:"flex",gap:8,flexShrink:0,background:"#fff"}}>
+      <button onClick={()=>go(SCREENS.TAG_INSTRUCTIONS)} style={{flex:1,padding:"12px 0",borderRadius:12,border:`1.5px solid ${A}`,background:"transparent",color:A,fontSize:13,fontWeight:700,cursor:"pointer",lineHeight:1.3}}>
+        Activation<br/>instructions
+      </button>
+      <button onClick={()=>go(SCREENS.AFTER_TRIAL)} style={{flex:1,padding:"12px 0",borderRadius:12,border:"none",background:A,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",lineHeight:1.3}}>
+        Continue<br/>Premium
+      </button>
+    </div>}
+
+    <Nav active="home" go={t=>go(t==="home"?SCREENS.HOME:t==="organise"?SCREENS.ORGANISE:t==="ask"?SCREENS.ASK:SCREENS.BROWSE)}/>
+  </div>;
+}
+
+function Settings({go}){
+  const [autoDesc,setAutoDesc]=useState(true);
+  const [autoTags,setAutoTags]=useState(true);
+  const [checkoutRemind,setCheckoutRemind]=useState(true);
+  const [savePrompt,setSavePrompt]=useState(true);
+
+  const Toggle=({val,set})=>(
+    <div onClick={()=>set(!val)} style={{width:44,height:26,borderRadius:13,background:val?A:"#e0e0e0",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+      <div style={{position:"absolute",top:3,left:val?21:3,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s"}}/>
+    </div>
+  );
+
+  const Row=({label,sub,val,set})=>(
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid #f4f4f4"}}>
+      <div style={{flex:1,marginRight:12}}>
+        <div style={{fontSize:14,fontWeight:600,color:"#111"}}>{label}</div>
+        {sub&&<div style={{fontSize:12,color:"#aaa",marginTop:2,lineHeight:1.4}}>{sub}</div>}
+      </div>
+      <Toggle val={val} set={set}/>
+    </div>
+  );
+
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+      <BackBtn go={()=>go(SCREENS.HOME)}/>
+      <span style={{fontSize:17,fontWeight:700}}>Settings</span>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"0 20px 24px"}}>
+
+      {/* AI Settings — the toggles Nana specifically mentioned */}
+      <div style={{fontSize:11,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:.5,marginTop:16,marginBottom:2}}>AI features</div>
+      <Row label="Auto description" sub="AI automatically writes a description when it identifies an item" val={autoDesc} set={setAutoDesc}/>
+      <Row label="Auto tags" sub="AI suggests tags based on what it detects in photos" val={autoTags} set={setAutoTags}/>
+
+      {/* Notifications */}
+      <div style={{fontSize:11,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:.5,marginTop:20,marginBottom:2}}>Notifications</div>
+      <Row label="Checkout reminders" sub="Remind me when checked-out items haven't been returned" val={checkoutRemind} set={setCheckoutRemind}/>
+      <Row label="Save before exit" sub="Prompt me to save if I leave without confirming items" val={savePrompt} set={setSavePrompt}/>
+
+      {/* Premium / Tag activation */}
+      <div style={{fontSize:11,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:.5,marginTop:20,marginBottom:8}}>Premium & activation</div>
+      <div onClick={()=>go(SCREENS.TAG_INSTRUCTIONS)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid #f4f4f4",cursor:"pointer"}}>
+        <div><div style={{fontSize:14,fontWeight:600}}>Activation instructions</div><div style={{fontSize:12,color:"#aaa",marginTop:2}}>How to use your QR tag and activate premium</div></div>
+        <span style={{color:"#ccc",fontSize:16}}>›</span>
+      </div>
+      <div onClick={()=>go(SCREENS.REDEEM)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid #f4f4f4",cursor:"pointer"}}>
+        <div><div style={{fontSize:14,fontWeight:600}}>Enter activation code</div><div style={{fontSize:12,color:"#aaa",marginTop:2}}>Redeem the code from your tag packaging</div></div>
+        <span style={{color:"#ccc",fontSize:16}}>›</span>
+      </div>
+      <div onClick={()=>go(SCREENS.AFTER_TRIAL)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid #f4f4f4",cursor:"pointer"}}>
+        <div><div style={{fontSize:14,fontWeight:600}}>Continue Premium</div><div style={{fontSize:12,color:"#aaa",marginTop:2}}>$4.99/month or $50/year</div></div>
+        <span style={{color:"#ccc",fontSize:16}}>›</span>
+      </div>
+
+      {/* Account */}
+      <div style={{fontSize:11,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:.5,marginTop:20,marginBottom:2}}>Account</div>
+      {["Edit profile","Change password","Manage locations","Notification preferences","Language","About"].map(item=>(
+        <div key={item} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0",borderBottom:"0.5px solid #f4f4f4",cursor:"pointer"}}>
+          <span style={{fontSize:14,color:"#111"}}>{item}</span>
+          <span style={{color:"#ccc",fontSize:16}}>›</span>
+        </div>
+      ))}
+      <div style={{marginTop:20}}>
+        <Btn label="Sign out" onClick={()=>go(SCREENS.SPLASH)} outline/>
+      </div>
+    </div>
+  </div>;
+}
+
+function Organise({go}){
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"2px 20px 14px",flexShrink:0}}>
+      <div style={{fontSize:22,fontWeight:800}}>Organise</div>
+      <div style={{fontSize:13,color:"#aaa"}}>Scan a QR tag or add a container manually.</div>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"0 16px 16px"}}>
+      <div onClick={()=>go(SCREENS.SCAN_READY)} style={{background:AL,borderRadius:16,padding:20,marginBottom:12,cursor:"pointer"}}>
+        <div style={{fontSize:32,marginBottom:8}}>⬛</div>
+        <div style={{fontSize:16,fontWeight:800,color:AD,marginBottom:4}}>Scan QR tag</div>
+        <div style={{fontSize:13,color:"#0F6E56",lineHeight:1.5}}>Point your camera at the QR code on any container. A unique location is instantly created.</div>
+      </div>
+      <div onClick={()=>go(SCREENS.SCAN_READY)} style={{background:"#f5f5f5",borderRadius:16,padding:20,marginBottom:16,cursor:"pointer"}}>
+        <div style={{fontSize:32,marginBottom:8}}>⊞</div>
+        <div style={{fontSize:16,fontWeight:800,color:"#111",marginBottom:4}}>Add container manually</div>
+        <div style={{fontSize:13,color:"#888",lineHeight:1.5}}>No QR code? Create a digital container and add items manually.</div>
+      </div>
+      <div style={{fontSize:12,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:.5,marginBottom:8}}>Recent containers</div>
+      {[["Storage Box #1","12 items","🗃️"],["Gear Box","5 items","🎒"],["Wardrobe Box","18 items","👕"]].map(([n,s,e])=>(
+        <div key={n} onClick={()=>go(SCREENS.SCAN_READY)} style={{display:"flex",alignItems:"center",padding:"10px 0",borderBottom:"0.5px solid #f2f2f2",cursor:"pointer"}}>
+          <div style={{width:40,height:40,borderRadius:10,background:"#f0f0f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,marginRight:12}}>{e}</div>
+          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600}}>{n}</div><div style={{fontSize:12,color:"#aaa"}}>{s}</div></div>
+          <span style={{color:A,fontSize:14}}>→</span>
+        </div>
+      ))}
+    </div>
+    <Nav active="organise" go={t=>go(t==="home"?SCREENS.HOME:t==="organise"?SCREENS.ORGANISE:t==="ask"?SCREENS.ASK:SCREENS.BROWSE)}/>
+  </div>;
+}
+
+function ScanReady({go}){
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+      <BackBtn go={()=>go(SCREENS.ORGANISE)}/>
+      <span style={{fontSize:17,fontWeight:700}}>Scan container</span>
+    </div>
+    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 32px",textAlign:"center"}}>
+      <div style={{width:200,height:200,borderRadius:20,background:"#111",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:24,position:"relative"}}>
+        {[["top","left"],["top","right"],["bottom","left"],["bottom","right"]].map(([v,h])=>(
+          <div key={v+h} style={{position:"absolute",[v]:12,[h]:12,width:28,height:28,[`border${v.charAt(0).toUpperCase()+v.slice(1)}`]:`3px solid ${A}`,[`border${h.charAt(0).toUpperCase()+h.slice(1)}`]:`3px solid ${A}`,borderRadius:v==="top"&&h==="left"?"4px 0 0 0":v==="top"&&h==="right"?"0 4px 0 0":v==="bottom"&&h==="left"?"0 0 0 4px":"0 0 4px 0"}}/>
+        ))}
+        <div style={{color:"#444",fontSize:12}}>Camera preview</div>
+      </div>
+      <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>Point at the QR code</div>
+      <div style={{fontSize:13,color:"#888",lineHeight:1.7,marginBottom:32}}>Hold 10–20 cm above the tag. It will scan automatically. Good lighting helps.</div>
+      <Btn label="Simulate scan ▶" onClick={()=>go(SCREENS.SCANNING)}/>
+      <div style={{height:12}}/>
+      <Btn label="No QR code? Add manually" onClick={()=>go(SCREENS.ORGANISE)} ghost/>
+    </div>
+  </div>;
+}
+
+function Scanning({go}){
+  const [p,setP]=useState(0);
+  useEffect(()=>{
+    const t=setInterval(()=>setP(v=>{if(v>=100){clearInterval(t);setTimeout(()=>go(SCREENS.PROCESSING),500);return 100;}return v+5;}),80);
+    return()=>clearInterval(t);
+  },[]);
+  return <div style={{...scr,alignItems:"center",justifyContent:"center"}}>
+    <Bar/>
+    <div style={{textAlign:"center",padding:"0 32px"}}>
+      <div style={{fontSize:48,marginBottom:16}}>📹</div>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Recording...</div>
+      <div style={{fontSize:13,color:"#888",marginBottom:24}}>Pan slowly over all items in the container.</div>
+      <div style={{background:"#f0f0f0",borderRadius:8,height:6,overflow:"hidden",marginBottom:10}}>
+        <div style={{width:`${p}%`,height:"100%",background:A,transition:"width .08s"}}/>
+      </div>
+      <div style={{fontSize:13,color:"#888"}}>{p<100?`${p}%`:"Uploading..."}</div>
+    </div>
+  </div>;
+}
+
+function Processing({go}){
+  return <div style={{...scr,justifyContent:"space-between",paddingBottom:48}}>
+    <Bar/>
+    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 32px",textAlign:"center"}}>
+      <div style={{width:80,height:80,borderRadius:"50%",background:AL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,marginBottom:20}}>✨</div>
+      <div style={{fontSize:21,fontWeight:800,marginBottom:10}}>Keepin is doing its magic!</div>
+      <div style={{fontSize:14,color:"#666",lineHeight:1.7,marginBottom:8}}>This usually takes 1–2 minutes.</div>
+      <div style={{fontSize:13,color:"#999",lineHeight:1.6}}>We'll notify you when it's ready. You can keep using the app while we process.</div>
+    </div>
+    <div style={{padding:"0 24px",display:"flex",flexDirection:"column",gap:10}}>
+      <Btn label="Organise another container" onClick={()=>go(SCREENS.SCAN_READY)}/>
+      <Btn label="I'm done for now" onClick={()=>go(SCREENS.HOME)} ghost/>
+    </div>
+  </div>;
+}
+
+function Review({go}){
+  const [names,setNames]=useState(AI_ITEMS.map(i=>i.name));
+  const [conf,setConf]=useState(AI_ITEMS.map(()=>false));
+  const [done,setDone]=useState(false);
+  if(done) return <div style={{...scr,alignItems:"center",justifyContent:"center"}}>
+    <Bar/>
+    <div style={{textAlign:"center",padding:"0 32px"}}>
+      <div style={{fontSize:52,marginBottom:14}}>✓</div>
+      <div style={{fontSize:21,fontWeight:800,marginBottom:8,color:AD}}>Organisation done!</div>
+      <div style={{fontSize:14,color:"#888",marginBottom:32}}>Added 1 container and {AI_ITEMS.length} items to Storage Box #1.</div>
+      <Btn label="Back to home" onClick={()=>go(SCREENS.HOME)}/>
+    </div>
+  </div>;
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <BackBtn go={()=>go(SCREENS.HOME)}/>
+        <span style={{fontSize:17,fontWeight:700}}>Review items</span>
+      </div>
+      <button onClick={()=>setDone(true)} style={{background:A,color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Done</button>
+    </div>
+    <div style={{padding:"4px 16px 8px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+      <span style={{fontSize:13,color:"#aaa"}}>Storage Box #1 · {AI_ITEMS.length} items found</span>
+      <Pill label="AI Scan" color="green"/>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"0 16px 16px"}}>
+      <div style={{fontSize:12,color:"#888",background:"#f8f8f8",padding:"8px 12px",borderRadius:8,marginBottom:12,lineHeight:1.5}}>
+        AI has pre-filled names from your recording. Tap Confirm to accept or edit any name before saving.
+      </div>
+      {AI_ITEMS.map((item,i)=>(
+        <div key={item.id} style={{background:"#fff",border:`1.5px solid ${conf[i]?A:"#e8e8e8"}`,borderRadius:14,padding:"12px 14px",marginBottom:10}}>
+          <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:10}}>
+            <div style={{width:40,height:40,borderRadius:10,background:AL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{item.emoji}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:"#bbb",marginBottom:3}}>AI detected · {item.conf}% confidence</div>
+              <input value={names[i]} onChange={e=>{const n=[...names];n[i]=e.target.value;setNames(n);}} style={{width:"100%",padding:"7px 10px",borderRadius:8,border:"1px solid #e0e0e0",fontSize:14,fontWeight:600,boxSizing:"border-box",background:"#fafafa"}}/>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{const c=[...conf];c[i]=!c[i];setConf(c);}} style={{flex:1,padding:"8px 0",borderRadius:8,border:"none",background:conf[i]?A:"#f0f0f0",color:conf[i]?"#fff":"#666",fontSize:13,fontWeight:700,cursor:"pointer"}}>{conf[i]?"✓ Confirmed":"Confirm"}</button>
+            <button style={{padding:"8px 14px",borderRadius:8,border:"0.5px solid #e0e0e0",background:"#fff",color:"#888",fontSize:13,cursor:"pointer"}}>Move</button>
+          </div>
+        </div>
+      ))}
+      <Btn label="Finish & save all" onClick={()=>setDone(true)}/>
+    </div>
+  </div>;
+}
+
+function ItemDetail({go,showGate}){
+  const item=ITEMS_DATA[0];
+  const [out,setOut]=useState(false);
+  const [actions,setActions]=useState(false);
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}><BackBtn go={()=>go(SCREENS.HOME)}/><span style={{fontSize:17,fontWeight:700}}>Storage Box #1</span></div>
+      <div onClick={()=>setActions(true)} style={{width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:20,color:"#888"}}>⋯</div>
+    </div>
+    {actions&&<div onClick={()=>setActions(false)} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.45)",zIndex:10,display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:"20px 20px 0 0",padding:"20px 20px 40px"}}>
+        <div style={{width:36,height:4,borderRadius:2,background:"#e0e0e0",margin:"0 auto 18px"}}/>
+        {["Edit item","Move item to...","Check out item","Donate item"].map(a=><div key={a} onClick={()=>setActions(false)} style={{padding:"13px 0",borderBottom:"0.5px solid #f4f4f4",fontSize:15,cursor:"pointer",color:"#111"}}>{a}</div>)}
+        <div style={{padding:"13px 0",fontSize:15,cursor:"pointer",color:"#E24B4A",fontWeight:700}} onClick={()=>setActions(false)}>Remove item</div>
+      </div>
+    </div>}
+    <div style={{flex:1,overflowY:"auto"}}>
+      <div style={{margin:"0 16px 14px",background:"#f5f5f5",borderRadius:16,height:150,display:"flex",alignItems:"center",justifyContent:"center",fontSize:64}}>{item.emoji}</div>
+      <div style={{padding:"0 16px"}}>
+        <div style={{fontSize:22,fontWeight:800,marginBottom:4}}>{item.name}</div>
+        <div style={{fontSize:13,color:"#aaa",marginBottom:10}}>Added 14 Apr 2024 · Last updated today</div>
+        <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+          {item.tags.map(t=><Tag key={t} label={t} green/>)}
+          {out&&<Pill label="Checked out" color="amber"/>}
+        </div>
+        <div style={{background:"#f8f8f8",borderRadius:12,padding:"12px 14px",marginBottom:10}}>
+          <div style={{fontSize:11,color:"#bbb",marginBottom:3}}>Location</div>
+          <div style={{fontSize:14,fontWeight:700}}>{item.location} · {item.container}</div>
+        </div>
+        <div onClick={()=>showGate()} style={{background:"#fff",border:"0.5px solid #e8e8e8",borderRadius:12,padding:"12px 14px",marginBottom:14,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div><div style={{fontSize:14,fontWeight:700,marginBottom:2}}>AI Identify</div><div style={{fontSize:12,color:"#aaa"}}>Let AI recognise and describe this item</div></div>
+          <LockBadge/>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>setOut(!out)} style={{flex:1,padding:"13px 0",borderRadius:12,border:"none",background:A,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>{out?"Return item":"Check out"}</button>
+          <button style={{flex:1,padding:"13px 0",borderRadius:12,border:"0.5px solid #e0e0e0",background:"#fff",color:"#666",fontSize:14,fontWeight:700,cursor:"pointer"}}>Donate</button>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+function Ask({go}){
+  const [q,setQ]=useState("");
+  const [submitted,setSubmitted]=useState("");
+  const [results,setResults]=useState([]);
+  const [listening,setListening]=useState(false);
+  const scenarios=[
+    {label:"Where are my winter shoes?",items:[ITEMS_DATA[2]]},
+    {label:"I want to go hiking",items:[ITEMS_DATA[2],ITEMS_DATA[3]]},
+    {label:"Find my summer stuff",items:[ITEMS_DATA[5]]},
+  ];
+  const doSearch=q=>{
+    const s=scenarios.find(s=>s.label.toLowerCase().split(" ").some(w=>q.toLowerCase().includes(w)))||scenarios[0];
+    setSubmitted(q);setResults(s.items);setQ("");
+  };
+  const mic=()=>{setListening(true);setTimeout(()=>{setListening(false);doSearch(scenarios[1].label);},2000);};
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"2px 20px 10px",flexShrink:0}}>
+      <div style={{fontSize:22,fontWeight:800}}>Ask Keepin</div>
+      <div style={{fontSize:13,color:"#aaa"}}>Ask naturally — by item, occasion, or activity.</div>
+    </div>
+    {listening&&<div style={{margin:"0 16px 10px",background:AL,borderRadius:10,padding:"10px 14px",flexShrink:0,textAlign:"center"}}>
+      <div style={{fontSize:13,fontWeight:700,color:AD}}>Listening...</div>
+      <div style={{fontSize:11,color:"#0F6E56"}}>Speak now — will auto-fill in 2s</div>
+    </div>}
+    {submitted&&results.length>0?<div style={{flex:1,overflowY:"auto",padding:"0 16px"}}>
+      <div style={{background:"#f2f2f2",borderRadius:10,padding:"8px 12px",marginBottom:14,fontSize:13,color:"#444",fontStyle:"italic",display:"flex",gap:8,alignItems:"center"}}>
+        <span style={{flex:1}}>"{submitted}"</span>
+        <span onClick={()=>{setSubmitted("");setResults([]);}} style={{color:A,cursor:"pointer",fontStyle:"normal",fontWeight:700,fontSize:12}}>Edit</span>
+        <span onClick={()=>doSearch(submitted)} style={{color:"#888",cursor:"pointer",fontStyle:"normal",fontSize:12}}>Ask again</span>
+      </div>
+      <div style={{fontSize:13,color:"#aaa",marginBottom:10}}>{results.length} item{results.length>1?"s":""} found</div>
+      {results.map(i=><ItemRow key={i.id} item={i} onClick={()=>go(SCREENS.ITEM_DETAIL)}/>)}
+      <div style={{display:"flex",gap:10,marginTop:14}}>
+        <button style={{flex:1,padding:"13px 0",borderRadius:12,border:"none",background:A,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Check out all</button>
+        <button style={{flex:1,padding:"13px 0",borderRadius:12,border:"0.5px solid #e0e0e0",background:"#fff",color:"#666",fontSize:14,fontWeight:700,cursor:"pointer"}}>Move all</button>
+      </div>
+    </div>:<div style={{flex:1,overflowY:"auto",padding:"0 16px"}}>
+      <div style={{fontSize:12,color:"#bbb",marginBottom:10}}>Try asking:</div>
+      {scenarios.map(s=><div key={s.label} onClick={()=>doSearch(s.label)} style={{padding:"11px 14px",background:"#f8f8f8",borderRadius:10,marginBottom:8,fontSize:13,color:"#444",cursor:"pointer"}}>{s.label}</div>)}
+      <div style={{marginTop:16,padding:"12px 14px",background:AL,borderRadius:12}}>
+        <div style={{fontSize:12,fontWeight:700,color:AD,marginBottom:6}}>Premium search examples</div>
+        {["What should I pack for a beach holiday?","Find things I haven't used in 6 months","Show me all my gaming items"].map(e=><div key={e} style={{fontSize:12,color:"#0F6E56",padding:"3px 0",cursor:"pointer"}} onClick={()=>go(SCREENS.PREMIUM_GATE)}>🔒 {e}</div>)}
+      </div>
+    </div>}
+    <div style={{padding:"10px 16px",borderTop:"0.5px solid #f0f0f0",display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+      <input value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&q&&doSearch(q)} placeholder="Ask anything..." style={{flex:1,padding:"10px 14px",borderRadius:10,border:"1px solid #e0e0e0",fontSize:14,background:"#fafafa",outline:"none"}}/>
+      <button onClick={listening?()=>{}:mic} style={{width:40,height:40,borderRadius:10,background:listening?"#f0f0f0":AL,border:"none",cursor:"pointer",fontSize:18}}>🎙</button>
+      <button onClick={()=>q&&doSearch(q)} style={{width:40,height:40,borderRadius:10,background:A,border:"none",cursor:"pointer",color:"#fff",fontSize:16,fontWeight:800}}>→</button>
+    </div>
+    <Nav active="ask" go={t=>go(t==="home"?SCREENS.HOME:t==="organise"?SCREENS.ORGANISE:t==="ask"?SCREENS.ASK:SCREENS.BROWSE)}/>
+  </div>;
+}
+
+function Browse({go,items}){
+  const [q,setQ]=useState("");
+  const f=items.filter(i=>i.name.toLowerCase().includes(q.toLowerCase())||i.tags.some(t=>t.includes(q.toLowerCase())));
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"2px 16px 10px",flexShrink:0}}>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search items, containers, tags..." style={{width:"100%",padding:"11px 14px",borderRadius:10,border:"1px solid #e8e8e8",fontSize:14,background:"#f5f5f5",boxSizing:"border-box",outline:"none"}}/>
+    </div>
+    <div style={{display:"flex",gap:6,padding:"0 16px",marginBottom:10,flexWrap:"wrap",flexShrink:0}}>
+      {["All","gaming","hiking","clothes","apple"].map(t=><span key={t} onClick={()=>setQ(t==="All"?"":t)} style={{padding:"5px 12px",borderRadius:20,background:q===t?A:"#f0f0f0",color:q===t?"#fff":"#666",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t}</span>)}
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"0 16px"}}>
+      {f.length===0?<div style={{textAlign:"center",padding:"40px 0",color:"#bbb",fontSize:14}}>No items found</div>:f.map(i=><ItemRow key={i.id} item={i} onClick={()=>go(SCREENS.ITEM_DETAIL)}/>)}
+    </div>
+    <Nav active="browse" go={t=>go(t==="home"?SCREENS.HOME:t==="organise"?SCREENS.ORGANISE:t==="ask"?SCREENS.ASK:SCREENS.BROWSE)}/>
+  </div>;
+}
+
+function PremiumGate({go}){
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+      <BackBtn go={()=>go(SCREENS.ITEM_DETAIL)}/>
+      <span style={{fontSize:17,fontWeight:700}}>Premium feature</span>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"12px 24px 32px"}}>
+      <div style={{width:64,height:64,borderRadius:18,background:"#FAEEDA",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,marginBottom:16}}>🔒</div>
+      <div style={{fontSize:20,fontWeight:800,marginBottom:8}}>AI Identify is a premium feature</div>
+      <div style={{fontSize:14,color:"#666",lineHeight:1.7,marginBottom:22}}>This feature is included with every Keepin QR tag purchase. Each tag ships with a premium activation code for one free week.</div>
+      <div style={{background:"#f8f8f8",borderRadius:14,padding:16,marginBottom:20}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#aaa",textTransform:"uppercase",letterSpacing:.5,marginBottom:12}}>Premium unlocks</div>
+        {[["🤖","Automatic item recognition","From photos — no typing needed"],["📝","Smart item descriptions","AI writes them for you"],["🔍","Contextual search","Search by event, occasion, season"],["✦","AI assistant in-app","Ask in natural language"]].map(([ico,t,s])=>(
+          <div key={t} style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:12}}>
+            <div style={{width:34,height:34,borderRadius:8,background:AL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{ico}</div>
+            <div><div style={{fontSize:13,fontWeight:700}}>{t}</div><div style={{fontSize:12,color:"#aaa"}}>{s}</div></div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <Btn label="Activation instructions →" onClick={()=>go(SCREENS.TAG_INSTRUCTIONS)}/>
+        <Btn label="I already have a code" onClick={()=>go(SCREENS.REDEEM)} outline/>
+        <Btn label="Continue Premium ($4.99/mo)" onClick={()=>go(SCREENS.AFTER_TRIAL)} outline/>
+        <Btn label="Not now" onClick={()=>go(SCREENS.ITEM_DETAIL)} ghost/>
+      </div>
+    </div>
+  </div>;
+}
+
+function TagInstructions({go}){
+  const [step,setStep]=useState(0);
+  const steps=[
+    {ico:"📱",title:"Step 1: Create your free account",col:"#E6F1FB",tcol:"#0C447C",
+     desc:"Download the Keepin app and create your free account. You must be logged in before scanning any QR tags.",
+     visual:<div style={{background:"#f5f5f5",borderRadius:14,height:150,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14}}>
+       <div style={{width:80,height:120,borderRadius:16,background:"#1a1a1a",border:"3px solid #333",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+         <div style={{height:18,background:"#111",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:7,color:"#555"}}>9:41</span></div>
+         <div style={{flex:1,background:"#222",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:6,padding:"0 10px"}}>
+           <div style={{width:32,height:32,borderRadius:8,background:AL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>K</div>
+           <div style={{fontSize:7,color:"#888",textAlign:"center"}}>keepin</div>
+           <div style={{width:"100%",background:"#333",borderRadius:4,height:18,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:7,color:"#888"}}>Get started</span></div>
+         </div>
+       </div>
+     </div>,
+     note:"Account creation takes under 60 seconds. Free accounts include unlimited containers and manual item entry — forever."},
+    {ico:"🗃️",title:"Step 2: Place your QR tag on a container",col:"#EEEDFE",tcol:"#3C3489",
+     desc:"Peel and stick the QR tag onto any container, shelf, drawer, box, or space you want to organise. A unique location is instantly created when scanned.",
+     visual:<div style={{background:"#f5f5f5",borderRadius:14,height:150,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14}}>
+       <div style={{position:"relative"}}>
+         <div style={{width:110,height:80,borderRadius:8,background:"#D3D1C7",border:"2px solid #B4B2A9",display:"flex",alignItems:"center",justifyContent:"center"}}>
+           <span style={{fontSize:11,color:"#888",fontWeight:600}}>Storage Box</span>
+         </div>
+         <div style={{position:"absolute",top:-12,right:-8,width:38,height:38,borderRadius:8,background:"#fff",border:`2px solid ${A}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>
+           <div style={{display:"grid",gridTemplateColumns:"repeat(4,5px)",gap:1}}>
+             {Array.from({length:16}).map((_,i)=><div key={i} style={{width:5,height:5,background:[0,1,4,6,9,11,12,15].includes(i)?"#111":"#fff",borderRadius:1}}/>)}
+           </div>
+           <span style={{fontSize:7,color:"#888",letterSpacing:.5}}>keepin</span>
+         </div>
+         <div style={{position:"absolute",top:-18,right:-4,fontSize:16}}>📌</div>
+       </div>
+     </div>,
+     note:"QR tag locations are private to your account unless you choose to share access. You can rename the location anything and move it later in the app."},
+    {ico:"⬛",title:"Step 3: Open Keepin and tap Organise",col:AL,tcol:AD,
+     desc:"In the Keepin app, go to the Organise tab and tap 'Scan QR tag'. Your camera will open — hold it 10–20cm above the tag.",
+     visual:<div style={{background:"#111",borderRadius:14,height:150,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14,position:"relative"}}>
+       {[["top","left"],["top","right"],["bottom","left"],["bottom","right"]].map(([v,h])=>(
+         <div key={v+h} style={{position:"absolute",[v]:14,[h]:14,width:22,height:22,[`border${v.charAt(0).toUpperCase()+v.slice(1)}`]:`3px solid ${A}`,[`border${h.charAt(0).toUpperCase()+h.slice(1)}`]:`3px solid ${A}`,borderRadius:v==="top"&&h==="left"?"3px 0 0 0":v==="top"&&h==="right"?"0 3px 0 0":v==="bottom"&&h==="left"?"0 0 0 3px":"0 0 3px 0"}}/>
+       ))}
+       <div style={{width:60,height:60,borderRadius:10,background:"#fff",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
+         <div style={{display:"grid",gridTemplateColumns:"repeat(5,7px)",gap:1.5}}>
+           {Array.from({length:25}).map((_,i)=><div key={i} style={{width:7,height:7,background:[0,1,5,6,7,10,14,18,19,20,24].includes(i)?"#111":"#fff",borderRadius:1}}/>)}
+         </div>
+         <span style={{fontSize:8,color:"#888",letterSpacing:.5}}>keepin</span>
+       </div>
+       <div style={{position:"absolute",bottom:14,left:0,right:0,textAlign:"center"}}><span style={{fontSize:10,color:A,fontWeight:600}}>Scanning...</span></div>
+     </div>,
+     note:"Good lighting makes scanning faster. If it doesn't scan, wipe the tag clean or move closer to a light source."},
+    {ico:"🌐",title:"Activate your free premium week",col:"#FAEEDA",tcol:"#633806",
+     desc:"Each QR tag pack includes a Premium Code for one complimentary week of advanced features. The code is printed on the card inside your tag box.",
+     visual:<div style={{background:"#f5f5f5",borderRadius:14,height:150,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14}}>
+       <div style={{width:210,background:"#fff",borderRadius:12,border:"1px solid #e0e0e0",overflow:"hidden"}}>
+         <div style={{background:"#f0f0f0",padding:"5px 10px",display:"flex",alignItems:"center",gap:5}}>
+           <div style={{display:"flex",gap:3}}>{["#f97316","#facc15","#4ade80"].map(c=><div key={c} style={{width:7,height:7,borderRadius:"50%",background:c}}/>)}</div>
+           <div style={{flex:1,background:"#fff",borderRadius:3,padding:"2px 8px",fontSize:9,color:"#888",border:"0.5px solid #ddd"}}>redeem.keepin.ai</div>
+         </div>
+         <div style={{padding:"10px 14px"}}>
+           <div style={{fontSize:11,fontWeight:800,color:AD,marginBottom:4}}>Activate your premium code</div>
+           <div style={{fontSize:10,color:"#888",marginBottom:6}}>Enter the code from your tag packaging</div>
+           <div style={{background:"#f8f8f8",border:`1px solid ${A}`,borderRadius:6,padding:"5px 0",fontSize:13,fontWeight:800,letterSpacing:3,color:"#111",textAlign:"center"}}>M8R2T1LX</div>
+           <div style={{fontSize:9,color:"#aaa",marginTop:4}}>Valid for 7 days · Codes can be stacked</div>
+         </div>
+       </div>
+     </div>,
+     note:"This page opens in your browser — outside the app. This is required by Apple's App Store guidelines. Your code is safe and goes directly to your account."},
+    {ico:"✦",title:"After your trial ends",col:AL,tcol:AD,
+     desc:"Your QR tags and all saved inventory remain fully functional forever — even without Premium. You can always scan, organise, and search manually.",
+     visual:<div style={{background:"#f5f5f5",borderRadius:14,height:150,padding:"14px 16px",marginBottom:14,display:"flex",gap:16}}>
+       <div style={{flex:1}}>
+         <div style={{fontSize:11,fontWeight:700,color:AD,marginBottom:8}}>Always free</div>
+         {["Scan QR tags","Create locations","Add items manually","Keyword search"].map(f=><div key={f} style={{fontSize:11,color:"#555",marginBottom:5,display:"flex",gap:5,alignItems:"center"}}><span style={{color:A,fontWeight:700}}>✓</span>{f}</div>)}
+       </div>
+       <div style={{flex:1}}>
+         <div style={{fontSize:11,fontWeight:700,color:"#aaa",marginBottom:8}}>Premium only</div>
+         {["AI recognition","Smart descriptions","Contextual search","AI assistant"].map(f=><div key={f} style={{fontSize:11,color:"#aaa",marginBottom:5,display:"flex",gap:5,alignItems:"center"}}><span style={{color:"#ccc"}}>🔒</span>{f}</div>)}
+       </div>
+     </div>,
+     note:"Continue Premium anytime: $4.99/month or $50/year. Subscriptions can be purchased inside the app. Premium codes from multiple tag packs can be stacked."},
+  ];
+  const cur=steps[step];
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}><BackBtn go={()=>go(SCREENS.PREMIUM_GATE)}/><span style={{fontSize:17,fontWeight:700}}>How to activate</span></div>
+      <span style={{fontSize:13,color:"#aaa"}}>{step+1} / {steps.length}</span>
+    </div>
+    <div style={{display:"flex",gap:4,padding:"0 16px 12px",flexShrink:0}}>
+      {steps.map((_,i)=><div key={i} onClick={()=>setStep(i)} style={{flex:1,height:4,borderRadius:2,background:i<=step?A:"#e8e8e8",cursor:"pointer",transition:"background .2s"}}/>)}
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"0 20px 16px"}}>
+      <div style={{width:52,height:52,borderRadius:14,background:cur.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,marginBottom:14}}>{cur.ico}</div>
+      <div style={{fontSize:19,fontWeight:800,marginBottom:8,lineHeight:1.3,color:"#111"}}>{cur.title}</div>
+      <div style={{fontSize:14,color:"#555",lineHeight:1.7,marginBottom:16}}>{cur.desc}</div>
+      {cur.visual}
+      <div style={{background:"#f8f8f8",borderRadius:10,padding:"10px 12px",display:"flex",gap:8,alignItems:"flex-start"}}>
+        <span style={{fontSize:14,flexShrink:0}}>💡</span>
+        <div style={{fontSize:12,color:"#666",lineHeight:1.6}}>{cur.note}</div>
+      </div>
+    </div>
+    <div style={{padding:"10px 16px 20px",display:"flex",gap:10,flexShrink:0}}>
+      {step>0&&<Btn label="← Back" onClick={()=>setStep(s=>s-1)} outline/>}
+      {step<steps.length-1
+        ?<button onClick={()=>setStep(s=>s+1)} style={{flex:2,padding:"14px 0",borderRadius:12,border:"none",background:A,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>Next →</button>
+        :<button onClick={()=>go(SCREENS.REDEEM)} style={{flex:2,padding:"14px 0",borderRadius:12,border:"none",background:A,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer"}}>Enter my code →</button>
+      }
+    </div>
+  </div>;
+}
+
+function Redeem({go}){
+  const [code,setCode]=useState("");
+  const [err,setErr]=useState("");
+  const [ok,setOk]=useState(false);
+  const VALID=["M8R2T1LX","KEEPIN2024","PREMIUM1","KEEPIN001"];
+  const tryIt=()=>{
+    if(VALID.includes(code.toUpperCase())){setOk(true);setErr("");}
+    else setErr("Invalid code. Check the card inside your tag packaging and try again.");
+  };
+  if(ok) return <div style={{...scr,alignItems:"center",justifyContent:"center"}}>
+    <Bar/>
+    <div style={{textAlign:"center",padding:"0 32px"}}>
+      <div style={{width:80,height:80,borderRadius:"50%",background:AL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,margin:"0 auto 16px"}}>✓</div>
+      <div style={{fontSize:22,fontWeight:800,marginBottom:6,color:AD}}>Premium unlocked!</div>
+      <div style={{fontSize:14,color:"#666",lineHeight:1.7,marginBottom:12}}>Your account now has one free week of Premium access.</div>
+      <div style={{background:"#f8f8f8",borderRadius:12,padding:"12px 14px",marginBottom:24,textAlign:"left"}}>
+        <div style={{fontSize:12,fontWeight:700,color:AD,marginBottom:8}}>Now active on your account</div>
+        {["AI item recognition","Smart descriptions","Contextual search","AI assistant"].map(f=><div key={f} style={{fontSize:13,color:"#555",padding:"3px 0",display:"flex",gap:6}}><span style={{color:A}}>✓</span>{f}</div>)}
+      </div>
+      <Btn label="Start organising" onClick={()=>go(SCREENS.HOME)}/>
+    </div>
+  </div>;
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+      <BackBtn go={()=>go(SCREENS.TAG_INSTRUCTIONS)}/>
+      <span style={{fontSize:17,fontWeight:700}}>Activate premium</span>
+    </div>
+    <div style={{flex:1,padding:"16px 24px 0"}}>
+      <div style={{fontSize:20,fontWeight:800,marginBottom:8}}>Enter your activation code</div>
+      <div style={{fontSize:14,color:"#666",lineHeight:1.7,marginBottom:6}}>Find your code on the card inside your Keepin tag box. Each code gives you 7 days of Premium.</div>
+      <div style={{fontSize:12,color:"#aaa",marginBottom:20}}>Codes can be stacked — enter multiple packs to extend your access.</div>
+      <label style={{fontSize:13,color:"#777",display:"block",marginBottom:6}}>Activation code</label>
+      <input value={code} onChange={e=>{setCode(e.target.value.toUpperCase());setErr("");}} placeholder="e.g. M8R2T1LX" maxLength={10} style={{width:"100%",padding:"14px",borderRadius:10,border:`1px solid ${err?"#E24B4A":"#e0e0e0"}`,fontSize:20,fontWeight:800,textAlign:"center",letterSpacing:3,boxSizing:"border-box",background:"#fafafa",outline:"none",marginBottom:4}}/>
+      {err&&<div style={{fontSize:12,color:"#E24B4A",marginBottom:10}}>{err}</div>}
+      <div style={{fontSize:11,color:"#bbb",marginBottom:24}}>Test codes: M8R2T1LX · KEEPIN2024 · PREMIUM1</div>
+      <Btn label="Redeem code" onClick={tryIt} disabled={code.length<4}/>
+      <div style={{textAlign:"center",marginTop:16}}><span style={{fontSize:13,color:A,cursor:"pointer"}}>Buy Keepin tags on Amazon →</span></div>
+    </div>
+  </div>;
+}
+
+function AfterTrial({go}){
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+      <BackBtn go={()=>go(SCREENS.PREMIUM_GATE)}/>
+      <span style={{fontSize:17,fontWeight:700}}>Continue premium</span>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"12px 24px 32px"}}>
+      <div style={{fontSize:20,fontWeight:800,marginBottom:8}}>Continue Premium anytime</div>
+      <div style={{fontSize:14,color:"#666",lineHeight:1.7,marginBottom:20}}>If you'd like uninterrupted AI features after your free week:</div>
+      <div style={{display:"flex",gap:10,marginBottom:20}}>
+        {[["Monthly","$4.99","per month",""],["Yearly","$50","per year","Best value"]].map(([label,price,sub,badge])=>(
+          <div key={label} style={{flex:1,border:`1.5px solid ${badge?A:"#e0e0e0"}`,borderRadius:14,padding:"16px 12px",textAlign:"center",cursor:"pointer",position:"relative"}}>
+            {badge&&<div style={{position:"absolute",top:-10,left:"50%",transform:"translateX(-50%)",background:A,color:"#fff",fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:20,whiteSpace:"nowrap"}}>{badge}</div>}
+            <div style={{fontSize:12,color:"#aaa",marginBottom:4}}>{label}</div>
+            <div style={{fontSize:24,fontWeight:800,color:"#111"}}>{price}</div>
+            <div style={{fontSize:11,color:"#aaa"}}>{sub}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:"#f8f8f8",borderRadius:12,padding:"14px",marginBottom:20}}>
+        <div style={{fontSize:12,fontWeight:700,color:"#555",marginBottom:10}}>Your free tier stays forever</div>
+        {["Unlimited QR tag scanning","Unlimited containers","Manual item entry","Keyword search"].map(f=><div key={f} style={{fontSize:13,color:"#555",padding:"3px 0",display:"flex",gap:6}}><span style={{color:A}}>✓</span>{f}</div>)}
+      </div>
+      <Btn label="Subscribe — $4.99/month" onClick={()=>go(SCREENS.HOME)}/>
+      <div style={{height:10}}/>
+      <Btn label="Subscribe — $50/year" onClick={()=>go(SCREENS.HOME)} outline/>
+      <div style={{height:10}}/>
+      <Btn label="Not now" onClick={()=>go(SCREENS.HOME)} ghost/>
+    </div>
+  </div>;
+}
+
+function Notifs({go}){
+  const n=[
+    {ico:"🍶",title:"Are you still using 'Water Bottle'?",sub:"Checked out 5 days ago. Don't forget to return it.",action:"Return item",col:"amber"},
+    {ico:"✨",title:"Storage Box #1 recording processed",sub:"4 items identified and ready to organise.",action:"Organise now",col:"green"},
+    {ico:"📦",title:"Gear Box scan complete",sub:"5 items saved successfully.",action:null},
+  ];
+  return <div style={scr}>
+    <Bar/>
+    <div style={{padding:"6px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+      <BackBtn go={()=>go(SCREENS.HOME)}/>
+      <span style={{fontSize:17,fontWeight:700}}>Notifications</span>
+    </div>
+    <div style={{flex:1,overflowY:"auto",padding:"8px 16px"}}>
+      {n.map((item,i)=>(
+        <div key={i} style={{background:"#fff",border:"0.5px solid #e8e8e8",borderRadius:14,padding:"12px 14px",marginBottom:10}}>
+          <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{width:40,height:40,borderRadius:10,background:item.col==="amber"?"#FAEEDA":item.col==="green"?AL:"#f5f5f5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{item.ico}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:14,fontWeight:700,marginBottom:3,lineHeight:1.4}}>{item.title}</div>
+              <div style={{fontSize:12,color:"#aaa",lineHeight:1.5}}>{item.sub}</div>
+              {item.action&&<button onClick={()=>item.action.includes("Organise")?go(SCREENS.REVIEW):go(SCREENS.HOME)} style={{marginTop:10,padding:"6px 14px",borderRadius:8,border:"none",background:item.col==="amber"?"#FAEEDA":AL,color:item.col==="amber"?"#633806":AD,fontSize:12,fontWeight:700,cursor:"pointer"}}>{item.action}</button>}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>;
+}
+
+export default function App(){
+  const [screen,setScreen]=useState(SCREENS.SPLASH);
+  const [items]=useState(ITEMS_DATA);
+  const [banner]=useState(true);
+  const go=s=>setScreen(s);
+
+  const map={
+    [SCREENS.SPLASH]:<Splash go={go}/>,
+    [SCREENS.SIGNIN]:<SignIn go={go}/>,
+    [SCREENS.SIGNUP]:<SignUp go={go}/>,
+    [SCREENS.ONBOARD_USE]:<OnboardUse go={go}/>,
+    [SCREENS.SETUP_LOC]:<SetupLoc go={go}/>,
+    [SCREENS.HOME]:<Home go={go} items={items} banner={banner} isPremium={false}/>,
+    [SCREENS.ORGANISE]:<Organise go={go}/>,
+    [SCREENS.SCAN_READY]:<ScanReady go={go}/>,
+    [SCREENS.SCANNING]:<Scanning go={go}/>,
+    [SCREENS.PROCESSING]:<Processing go={go}/>,
+    [SCREENS.REVIEW]:<Review go={go}/>,
+    [SCREENS.ITEM_DETAIL]:<ItemDetail go={go} showGate={()=>go(SCREENS.PREMIUM_GATE)}/>,
+    [SCREENS.ASK]:<Ask go={go}/>,
+    [SCREENS.BROWSE]:<Browse go={go} items={items}/>,
+    [SCREENS.PREMIUM_GATE]:<PremiumGate go={go}/>,
+    [SCREENS.TAG_INSTRUCTIONS]:<TagInstructions go={go}/>,
+    [SCREENS.REDEEM]:<Redeem go={go}/>,
+    [SCREENS.AFTER_TRIAL]:<AfterTrial go={go}/>,
+    [SCREENS.NOTIFS]:<Notifs go={go}/>,
+    [SCREENS.SETTINGS]:<Settings go={go}/>,
+  };
+
+  const jumps=[
+    [SCREENS.SPLASH,"Splash"],[SCREENS.SIGNIN,"Sign in"],[SCREENS.SIGNUP,"Sign up"],
+    [SCREENS.ONBOARD_USE,"Use case"],[SCREENS.HOME,"Home"],[SCREENS.ORGANISE,"Organise"],
+    [SCREENS.SCAN_READY,"Scan"],[SCREENS.REVIEW,"Review items"],[SCREENS.ITEM_DETAIL,"Item detail"],
+    [SCREENS.ASK,"Ask AI"],[SCREENS.BROWSE,"Browse"],[SCREENS.PREMIUM_GATE,"Premium gate"],
+    [SCREENS.TAG_INSTRUCTIONS,"Tag instructions"],[SCREENS.REDEEM,"Redeem code"],
+    [SCREENS.AFTER_TRIAL,"After trial"],[SCREENS.NOTIFS,"Notifications"],[SCREENS.SETTINGS,"Settings"],
+  ];
+
+  return <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"20px 16px",minHeight:"100vh",background:"var(--color-background-tertiary)"}}>
+    <div style={{fontSize:12,color:"var(--color-text-tertiary)",marginBottom:12,fontWeight:600,letterSpacing:.5}}>keepin™ — MVP prototype v2</div>
+    <div style={{position:"relative",width:375,height:720,borderRadius:40,overflow:"hidden",border:"8px solid #111",boxSizing:"content-box"}}>
+      {map[screen]}
+    </div>
+    <div style={{marginTop:14,display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center",maxWidth:440}}>
+      {jumps.map(([s,l])=>(
+        <button key={s} onClick={()=>go(s)} style={{padding:"5px 11px",borderRadius:20,border:`0.5px solid ${screen===s?A:"#ddd"}`,background:screen===s?AL:"var(--color-background-primary)",color:screen===s?AD:"var(--color-text-secondary)",fontSize:11,cursor:"pointer",fontWeight:screen===s?700:400}}>
+          {l}
+        </button>
+      ))}
+    </div>
+    <div style={{marginTop:8,fontSize:11,color:"var(--color-text-tertiary)"}}>Tap the screen to navigate · or use quick-jump buttons</div>
+  </div>;
+}
